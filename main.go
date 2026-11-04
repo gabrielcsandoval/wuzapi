@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
@@ -490,6 +492,7 @@ func main() {
 	}
 	s.routes()
 
+	refreshWhatsAppWebVersion()
 	s.connectOnStartup()
 
 	// Start background cleanup of stale passkey pairing states (needed for both modes)
@@ -500,6 +503,21 @@ func main() {
 	} else {
 		startHTTPMode(s)
 	}
+}
+
+// Refresh the advertised web client version before any WhatsApp connection.
+// A healthy HTTP server can otherwise keep running with a rejected WA client.
+func refreshWhatsAppWebVersion() {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	version, err := whatsmeow.GetLatestVersion(ctx, nil)
+	if err != nil {
+		log.Warn().Err(err).Msg("Could not refresh WhatsApp Web version; using bundled version")
+		return
+	}
+	store.SetWAVersion(*version)
+	log.Info().Interface("version", store.GetWAVersion()).Msg("WhatsApp Web version refreshed")
 }
 
 func startHTTPMode(s *server) {
